@@ -11,7 +11,7 @@ interface Activity {
   imageUrl?: string;
   videoUrl?: string;
   potentialProfit: number;
-  timestamp: Date;
+  timestamp: Date | string;
   completed: boolean;
   profit?: number;
 }
@@ -19,7 +19,7 @@ interface Activity {
 interface DelayProfitEntry {
   id: string;
   amount: number;
-  date: Date;
+  date: Date | string;
 }
 
 interface StatsDashboardProps {
@@ -32,6 +32,12 @@ interface StatsDashboardProps {
 export default function StatsDashboard({ activities = [], delayProfitEntries = [], onAddDelayProfit, onRemoveDelayProfit }: StatsDashboardProps) {
   const [delayAmount, setDelayAmount] = useState("");
 
+  // Função auxiliar para converter para Date de forma segura
+  const toDate = (date: Date | string): Date => {
+    if (date instanceof Date) return date;
+    return new Date(date);
+  };
+
   const stats = {
     total: activities.length,
     completed: activities.filter(a => a.completed).length,
@@ -42,7 +48,7 @@ export default function StatsDashboard({ activities = [], delayProfitEntries = [
     successRate: activities.length > 0 ? (activities.filter(a => a.completed).length / activities.length) * 100 : 0,
   };
 
-  const delayProfit = delayProfitEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const delayProfit = delayProfitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
   const totalProfitWithDelay = stats.totalProfit + delayProfit;
 
   const handleAddDelayProfit = () => {
@@ -56,16 +62,16 @@ export default function StatsDashboard({ activities = [], delayProfitEntries = [
   // Preparar dados para o gráfico
   const chartData = activities
     .filter(a => a.completed)
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .sort((a, b) => toDate(a.timestamp).getTime() - toDate(b.timestamp).getTime())
     .map((activity, index) => {
       const cumulativeProfit = activities
         .filter(a => a.completed)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .sort((a, b) => toDate(a.timestamp).getTime() - toDate(b.timestamp).getTime())
         .slice(0, index + 1)
         .reduce((sum, a) => sum + (a.profit || 0), 0);
       
       return {
-        name: new Date(activity.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        name: toDate(activity.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
         lucro: activity.profit || 0,
         acumulado: cumulativeProfit,
         atividade: activity.title.substring(0, 20) + (activity.title.length > 20 ? '...' : ''),
@@ -146,9 +152,9 @@ export default function StatsDashboard({ activities = [], delayProfitEntries = [
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold text-cyan-400">R$ {entry.amount.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-cyan-400">R$ {(entry.amount || 0).toFixed(2)}</span>
                       <span className="text-xs text-gray-500">
-                        {new Date(entry.date).toLocaleDateString('pt-BR', { 
+                        {toDate(entry.date).toLocaleDateString('pt-BR', { 
                           day: '2-digit', 
                           month: '2-digit', 
                           year: 'numeric',
@@ -366,7 +372,7 @@ export default function StatsDashboard({ activities = [], delayProfitEntries = [
                   <div className="flex-1">
                     <p className="text-sm font-medium text-white truncate">{activity.title}</p>
                     <p className="text-xs text-gray-400">
-                      {new Date(activity.timestamp).toLocaleDateString('pt-BR')}
+                      {toDate(activity.timestamp).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
                   <div className="text-right">

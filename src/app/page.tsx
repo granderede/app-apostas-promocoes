@@ -65,17 +65,32 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    // Verificar usuário logado
+    // Verificar usuário logado apenas se Supabase estiver configurado
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário');
+      if (!supabase) {
+        setUserName('Visitante');
+        return;
+      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário');
+        } else {
+          setUserName('Visitante');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar usuário:', error);
+        setUserName('Visitante');
       }
     };
     checkUser();
   }, []);
 
   const handleLogout = async () => {
+    if (!supabase) {
+      router.push('/auth');
+      return;
+    }
     await signOut();
     router.push('/auth');
   };
