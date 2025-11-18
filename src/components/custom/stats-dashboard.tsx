@@ -29,7 +29,7 @@ interface StatsDashboardProps {
   onRemoveDelayProfit: (id: string) => void;
 }
 
-export default function StatsDashboard({ activities, delayProfitEntries, onAddDelayProfit, onRemoveDelayProfit }: StatsDashboardProps) {
+export default function StatsDashboard({ activities = [], delayProfitEntries = [], onAddDelayProfit, onRemoveDelayProfit }: StatsDashboardProps) {
   const [delayAmount, setDelayAmount] = useState("");
 
   const stats = {
@@ -72,7 +72,7 @@ export default function StatsDashboard({ activities, delayProfitEntries, onAddDe
       };
     });
 
-  const maxValue = Math.max(...activities.map(a => Math.abs(a.profit || a.potentialProfit)));
+  const maxValue = activities.length > 0 ? Math.max(...activities.map(a => Math.abs(a.profit || a.potentialProfit))) : 0;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
@@ -289,93 +289,97 @@ export default function StatsDashboard({ activities, delayProfitEntries, onAddDe
       )}
 
       {/* Performance Chart - Barras Horizontais */}
-      <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-green-500/30 transition-all duration-500 animate-in slide-in-from-bottom duration-700 delay-150 hover:shadow-2xl hover:shadow-green-500/10">
-        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-          <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-emerald-600 rounded-full"></div>
-          Histórico de Resultados
-        </h3>
-        <div className="space-y-3">
-          {activities.slice(0, 10).reverse().map((activity, index) => {
-            const value = activity.profit || 0;
-            const percentage = maxValue > 0 ? (Math.abs(value) / maxValue) * 100 : 0;
-            const isProfit = value >= 0;
-            
-            return (
-              <div 
-                key={activity.id} 
-                className="space-y-2 group hover:bg-zinc-800/50 p-2 rounded-lg transition-all duration-300"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400 truncate max-w-[200px] group-hover:text-white transition-colors duration-300">
-                    {activity.title}
-                  </span>
-                  <span className={`font-bold transition-all duration-300 ${
-                    activity.completed 
-                      ? isProfit ? 'text-green-400 group-hover:text-green-300' : 'text-red-400 group-hover:text-red-300'
-                      : 'text-gray-600'
-                  }`}>
-                    {activity.completed 
-                      ? `${isProfit ? 'R$ ' : '-R$ '}${Math.abs(value).toFixed(2)}` 
-                      : 'Não realizada'}
-                  </span>
+      {activities.length > 0 && (
+        <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-green-500/30 transition-all duration-500 animate-in slide-in-from-bottom duration-700 delay-150 hover:shadow-2xl hover:shadow-green-500/10">
+          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+            <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-emerald-600 rounded-full"></div>
+            Histórico de Resultados
+          </h3>
+          <div className="space-y-3">
+            {activities.slice(0, 10).reverse().map((activity, index) => {
+              const value = activity.profit || 0;
+              const percentage = maxValue > 0 ? (Math.abs(value) / maxValue) * 100 : 0;
+              const isProfit = value >= 0;
+              
+              return (
+                <div 
+                  key={activity.id} 
+                  className="space-y-2 group hover:bg-zinc-800/50 p-2 rounded-lg transition-all duration-300"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400 truncate max-w-[200px] group-hover:text-white transition-colors duration-300">
+                      {activity.title}
+                    </span>
+                    <span className={`font-bold transition-all duration-300 ${
+                      activity.completed 
+                        ? isProfit ? 'text-green-400 group-hover:text-green-300' : 'text-red-400 group-hover:text-red-300'
+                        : 'text-gray-600'
+                    }`}>
+                      {activity.completed 
+                        ? `${isProfit ? 'R$ ' : '-R$ '}${Math.abs(value).toFixed(2)}` 
+                        : 'Não realizada'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                        activity.completed
+                          ? isProfit
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-500/50'
+                            : 'bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/50'
+                          : 'bg-zinc-700'
+                      }`}
+                      style={{ 
+                        width: activity.completed ? `${percentage}%` : '0%',
+                        transitionDelay: `${index * 100}ms`
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-zinc-800 rounded-full h-3 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                      activity.completed
-                        ? isProfit
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-500/50'
-                          : 'bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/50'
-                        : 'bg-zinc-700'
-                    }`}
-                    style={{ 
-                      width: activity.completed ? `${percentage}%` : '0%',
-                      transitionDelay: `${index * 100}ms`
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Activity Breakdown */}
-      <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-blue-500/30 transition-all duration-500 animate-in slide-in-from-bottom duration-700 delay-300 hover:shadow-2xl hover:shadow-blue-500/10">
-        <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-          <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-600 rounded-full"></div>
-          Atividades Realizadas
-        </h3>
-        <div className="space-y-3">
-          {activities.filter(a => a.completed).slice(0, 5).map((activity, index) => {
-            const isProfit = (activity.profit || 0) >= 0;
-            return (
-              <div 
-                key={activity.id} 
-                className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 hover:scale-105 hover:shadow-lg ${
-                  isProfit 
-                    ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20 hover:border-green-500/40' 
-                    : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40'
-                }`}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white truncate">{activity.title}</p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(activity.timestamp).toLocaleDateString('pt-BR')}
-                  </p>
+      {activities.filter(a => a.completed).length > 0 && (
+        <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-blue-500/30 transition-all duration-500 animate-in slide-in-from-bottom duration-700 delay-300 hover:shadow-2xl hover:shadow-blue-500/10">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-600 rounded-full"></div>
+            Atividades Realizadas
+          </h3>
+          <div className="space-y-3">
+            {activities.filter(a => a.completed).slice(0, 5).map((activity, index) => {
+              const isProfit = (activity.profit || 0) >= 0;
+              return (
+                <div 
+                  key={activity.id} 
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+                    isProfit 
+                      ? 'bg-green-500/10 border-green-500/20 hover:bg-green-500/20 hover:border-green-500/40' 
+                      : 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40'
+                  }`}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-white truncate">{activity.title}</p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(activity.timestamp).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                      {isProfit ? 'R$ ' : '-R$ '}{Math.abs(activity.profit || 0).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className={`text-sm font-bold ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
-                    {isProfit ? 'R$ ' : '-R$ '}{Math.abs(activity.profit || 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Motivational Message com animação */}
       <div className="bg-gradient-to-r from-green-500/20 to-emerald-600/20 p-6 rounded-2xl border border-green-500/30 hover:shadow-2xl hover:shadow-green-500/20 transition-all duration-500 hover:scale-105 animate-in slide-in-from-bottom duration-700 delay-500">

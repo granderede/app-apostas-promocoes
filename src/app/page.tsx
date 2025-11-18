@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, TrendingUp, DollarSign, CheckCircle2, XCircle, BarChart3 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Bell, TrendingUp, DollarSign, CheckCircle2, XCircle, BarChart3, LogOut } from "lucide-react";
 import DiscordStatus from "@/components/custom/discord-status";
 import ActivityCard from "@/components/custom/activity-card";
 import StatsDashboard from "@/components/custom/stats-dashboard";
 import SupportButton from "@/components/custom/support-button";
+import { supabase, signOut } from "@/lib/supabase";
 
 interface Activity {
   id: string;
@@ -26,8 +28,10 @@ interface DelayProfitEntry {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [view, setView] = useState<"feed" | "stats">("feed");
   const [delayProfitEntries, setDelayProfitEntries] = useState<DelayProfitEntry[]>([]);
+  const [userName, setUserName] = useState<string>("");
   const [activities, setActivities] = useState<Activity[]>([
     {
       id: "1",
@@ -59,6 +63,22 @@ export default function Home() {
       profit: 420,
     },
   ]);
+
+  useEffect(() => {
+    // Verificar usuário logado
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário');
+      }
+    };
+    checkUser();
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/auth');
+  };
 
   const handleToggleComplete = (id: string, profit?: number) => {
     setActivities(prev =>
@@ -106,7 +126,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-green-400">FalcaoPro Metodos</h1>
-                <p className="text-xs text-gray-400">Dinheiro no bolso, sem risco</p>
+                <p className="text-xs text-gray-400">Olá, {userName}!</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -117,6 +137,13 @@ export default function Home() {
               <button className="relative p-2 hover:bg-green-500/10 rounded-lg transition-colors">
                 <Bell className="w-5 h-5 text-green-400" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group"
+                title="Sair"
+              >
+                <LogOut className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
               </button>
             </div>
           </div>
