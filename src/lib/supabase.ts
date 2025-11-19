@@ -1,29 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Função para obter variáveis de ambiente de forma segura
-function getEnvVar(key: string): string {
-  if (typeof window !== 'undefined') {
-    // Cliente: usar variáveis públicas
-    return (window as any).__ENV__?.[key] || process.env[key] || '';
-  }
-  // Servidor: usar process.env
-  return process.env[key] || '';
-}
-
-const supabaseUrl = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+// Obter variáveis de ambiente (Next.js substitui em build time)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Verificar se Supabase está configurado
-export function isSupabaseConfigured() {
-  return !!(
+export function isSupabaseConfigured(): boolean {
+  const isConfigured = !!(
     supabaseUrl && 
     supabaseAnonKey && 
-    supabaseUrl !== '' && 
-    supabaseAnonKey !== '' &&
-    supabaseUrl !== 'undefined' && 
-    supabaseAnonKey !== 'undefined' &&
+    supabaseUrl.length > 0 && 
+    supabaseAnonKey.length > 0 &&
     supabaseUrl.startsWith('https://')
   );
+  
+  // Debug: log apenas no desenvolvimento
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Supabase Config Check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseAnonKey,
+      urlValid: supabaseUrl.startsWith('https://'),
+      isConfigured
+    });
+  }
+  
+  return isConfigured;
 }
 
 // Criar cliente Supabase apenas se estiver configurado
@@ -33,14 +34,30 @@ export const supabase = isSupabaseConfigured()
 
 // Helper para verificar se usuário está autenticado
 export async function getUser() {
-  if (!supabase) return null;
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  if (!supabase) {
+    console.warn('Supabase não está configurado');
+    return null;
+  }
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    return user;
+  } catch (error) {
+    console.error('Erro ao obter usuário:', error);
+    return null;
+  }
 }
 
 // Helper para fazer logout
 export async function signOut() {
-  if (!supabase) return { error: new Error('Supabase não configurado') };
-  const { error } = await supabase.auth.signOut();
-  return { error };
+  if (!supabase) {
+    return { error: new Error('Supabase não configurado') };
+  }
+  try {
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  } catch (error) {
+    console.error('Erro ao fazer logout:', error);
+    return { error: error as Error };
+  }
 }
