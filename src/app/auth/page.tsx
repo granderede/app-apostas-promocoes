@@ -1,75 +1,57 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Auth } from "@supabase/auth-ui-react";
+import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/lib/supabase";
-import { DollarSign, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { DollarSign } from "lucide-react";
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    name: "",
-  });
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     // Verificar se usuário já está logado
     const checkUser = async () => {
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         router.push("/");
       }
     };
     checkUser();
+
+    // Listener para mudanças de autenticação
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_IN" && session) {
+          router.push("/");
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
   }, [router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      if (isLogin) {
-        // Login
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        if (error) throw error;
-
-        setSuccess("Login realizado com sucesso!");
-        setTimeout(() => router.push("/"), 1000);
-      } else {
-        // Cadastro
-        const { data, error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              name: formData.name,
-            },
-          },
-        });
-
-        if (error) throw error;
-
-        setSuccess("Cadastro realizado! Verifique seu email para confirmar.");
-        setTimeout(() => setIsLogin(true), 2000);
-      }
-    } catch (err: any) {
-      setError(err.message || "Ocorreu um erro. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Se Supabase não estiver configurado
+  if (!supabase) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl mb-4">
+            <DollarSign className="w-10 h-10 text-black" />
+          </div>
+          <h1 className="text-3xl font-bold text-green-400 mb-4">FalcaoPro Metodos</h1>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6">
+            <p className="text-yellow-400 mb-2">⚠️ Configuração Necessária</p>
+            <p className="text-gray-300 text-sm">
+              Configure suas variáveis de ambiente do Supabase para habilitar a autenticação.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
@@ -83,165 +65,133 @@ export default function AuthPage() {
           <p className="text-gray-400">Dinheiro no bolso, sem risco</p>
         </div>
 
-        {/* Card de Autenticação */}
+        {/* Card de Autenticação com componente oficial do Supabase */}
         <div className="bg-zinc-900 border border-green-500/20 rounded-2xl p-8 shadow-2xl">
-          {/* Tabs */}
-          <div className="flex gap-2 mb-6 bg-black p-1 rounded-lg">
-            <button
-              onClick={() => {
-                setIsLogin(true);
-                setError("");
-                setSuccess("");
-              }}
-              className={`flex-1 py-2.5 rounded-md font-medium transition-all ${
-                isLogin
-                  ? "bg-green-500 text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => {
-                setIsLogin(false);
-                setError("");
-                setSuccess("");
-              }}
-              className={`flex-1 py-2.5 rounded-md font-medium transition-all ${
-                !isLogin
-                  ? "bg-green-500 text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Cadastrar
-            </button>
-          </div>
-
-          {/* Formulário */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Nome Completo
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="w-full bg-black border border-green-500/30 rounded-lg pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors"
-                    placeholder="Seu nome"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="w-full bg-black border border-green-500/30 rounded-lg pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors"
-                  placeholder="seu@email.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Senha
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="w-full bg-black border border-green-500/30 rounded-lg pl-11 pr-12 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 transition-colors"
-                  placeholder="••••••••"
-                  minLength={6}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-              {!isLogin && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Mínimo de 6 caracteres
-                </p>
-              )}
-            </div>
-
-            {/* Mensagens */}
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-sm text-green-400">
-                {success}
-              </div>
-            )}
-
-            {/* Botão Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-black font-bold py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Processando..." : isLogin ? "Entrar" : "Criar Conta"}
-            </button>
-          </form>
-
-          {/* Link alternativo */}
-          <div className="mt-6 text-center text-sm text-gray-400">
-            {isLogin ? (
-              <p>
-                Não tem uma conta?{" "}
-                <button
-                  onClick={() => setIsLogin(false)}
-                  className="text-green-400 hover:text-green-300 font-medium"
-                >
-                  Cadastre-se
-                </button>
-              </p>
-            ) : (
-              <p>
-                Já tem uma conta?{" "}
-                <button
-                  onClick={() => setIsLogin(true)}
-                  className="text-green-400 hover:text-green-300 font-medium"
-                >
-                  Faça login
-                </button>
-              </p>
-            )}
-          </div>
+          <Auth
+            supabaseClient={supabase}
+            appearance={{
+              theme: ThemeSupa,
+              variables: {
+                default: {
+                  colors: {
+                    brand: '#22c55e',
+                    brandAccent: '#16a34a',
+                    brandButtonText: 'black',
+                    defaultButtonBackground: '#18181b',
+                    defaultButtonBackgroundHover: '#27272a',
+                    defaultButtonBorder: 'rgba(34, 197, 94, 0.2)',
+                    defaultButtonText: 'white',
+                    dividerBackground: 'rgba(34, 197, 94, 0.2)',
+                    inputBackground: '#000000',
+                    inputBorder: 'rgba(34, 197, 94, 0.3)',
+                    inputBorderHover: 'rgba(34, 197, 94, 0.5)',
+                    inputBorderFocus: '#22c55e',
+                    inputText: 'white',
+                    inputLabelText: '#d1d5db',
+                    inputPlaceholder: '#6b7280',
+                    messageText: '#d1d5db',
+                    messageTextDanger: '#ef4444',
+                    anchorTextColor: '#22c55e',
+                    anchorTextHoverColor: '#16a34a',
+                  },
+                  space: {
+                    spaceSmall: '4px',
+                    spaceMedium: '8px',
+                    spaceLarge: '16px',
+                    labelBottomMargin: '8px',
+                    anchorBottomMargin: '4px',
+                    emailInputSpacing: '4px',
+                    socialAuthSpacing: '4px',
+                    buttonPadding: '12px 16px',
+                    inputPadding: '12px 16px',
+                  },
+                  fontSizes: {
+                    baseBodySize: '14px',
+                    baseInputSize: '14px',
+                    baseLabelSize: '14px',
+                    baseButtonSize: '14px',
+                  },
+                  fonts: {
+                    bodyFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+                    buttonFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+                    inputFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+                    labelFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif`,
+                  },
+                  borderWidths: {
+                    buttonBorderWidth: '1px',
+                    inputBorderWidth: '1px',
+                  },
+                  radii: {
+                    borderRadiusButton: '8px',
+                    buttonBorderRadius: '8px',
+                    inputBorderRadius: '8px',
+                  },
+                },
+              },
+              className: {
+                container: 'supabase-auth-container',
+                button: 'supabase-auth-button',
+                input: 'supabase-auth-input',
+                label: 'supabase-auth-label',
+              },
+            }}
+            localization={{
+              variables: {
+                sign_in: {
+                  email_label: 'Email',
+                  password_label: 'Senha',
+                  email_input_placeholder: 'seu@email.com',
+                  password_input_placeholder: '••••••••',
+                  button_label: 'Entrar',
+                  loading_button_label: 'Entrando...',
+                  social_provider_text: 'Entrar com {{provider}}',
+                  link_text: 'Já tem uma conta? Entre',
+                },
+                sign_up: {
+                  email_label: 'Email',
+                  password_label: 'Senha',
+                  email_input_placeholder: 'seu@email.com',
+                  password_input_placeholder: '••••••••',
+                  button_label: 'Criar Conta',
+                  loading_button_label: 'Criando conta...',
+                  social_provider_text: 'Cadastrar com {{provider}}',
+                  link_text: 'Não tem uma conta? Cadastre-se',
+                  confirmation_text: 'Verifique seu email para confirmar o cadastro',
+                },
+                forgotten_password: {
+                  email_label: 'Email',
+                  password_label: 'Senha',
+                  email_input_placeholder: 'seu@email.com',
+                  button_label: 'Enviar instruções',
+                  loading_button_label: 'Enviando...',
+                  link_text: 'Esqueceu sua senha?',
+                  confirmation_text: 'Verifique seu email para redefinir a senha',
+                },
+                update_password: {
+                  password_label: 'Nova senha',
+                  password_input_placeholder: '••••••••',
+                  button_label: 'Atualizar senha',
+                  loading_button_label: 'Atualizando...',
+                  confirmation_text: 'Sua senha foi atualizada',
+                },
+                verify_otp: {
+                  email_input_label: 'Email',
+                  email_input_placeholder: 'seu@email.com',
+                  phone_input_label: 'Telefone',
+                  phone_input_placeholder: 'Seu telefone',
+                  token_input_label: 'Código',
+                  token_input_placeholder: 'Código de verificação',
+                  button_label: 'Verificar',
+                  loading_button_label: 'Verificando...',
+                },
+              },
+            }}
+            providers={[]}
+            redirectTo={typeof window !== 'undefined' ? window.location.origin : ''}
+            view="sign_in"
+            showLinks={true}
+            magicLink={false}
+          />
         </div>
 
         {/* Info adicional */}
