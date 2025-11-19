@@ -8,7 +8,7 @@ import ActivityCard from "@/components/custom/activity-card";
 import StatsDashboard from "@/components/custom/stats-dashboard";
 import SupportButton from "@/components/custom/support-button";
 import PaymentWarning from "@/components/custom/payment-warning";
-import { supabase, signOut } from "@/lib/supabase";
+import { supabase, signOut, isSupabaseConfigured } from "@/lib/supabase";
 import { checkPaymentStatus, PaymentStatus } from "@/lib/payment-check";
 
 interface Activity {
@@ -44,8 +44,8 @@ export default function Home() {
   useEffect(() => {
     // Verificar usuário logado e carregar dados
     const loadUserData = async () => {
-      if (!supabase) {
-        router.push('/auth');
+      if (!isSupabaseConfigured()) {
+        setIsLoading(false);
         return;
       }
       try {
@@ -84,7 +84,7 @@ export default function Home() {
   }, [router]);
 
   const loadActivities = async (userId: string) => {
-    if (!supabase) return;
+    if (!isSupabaseConfigured()) return;
     
     try {
       const { data, error } = await supabase
@@ -115,7 +115,7 @@ export default function Home() {
   };
 
   const loadDelayProfits = async (userId: string) => {
-    if (!supabase) return;
+    if (!isSupabaseConfigured()) return;
     
     try {
       const { data, error } = await supabase
@@ -140,7 +140,7 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
-    if (!supabase) {
+    if (!isSupabaseConfigured()) {
       router.push('/auth');
       return;
     }
@@ -149,7 +149,7 @@ export default function Home() {
   };
 
   const handleToggleComplete = async (id: string, profit?: number) => {
-    if (!supabase) return;
+    if (!isSupabaseConfigured()) return;
 
     const activity = activities.find(a => a.id === id);
     if (!activity) return;
@@ -184,7 +184,7 @@ export default function Home() {
   };
 
   const handleAddDelayProfit = async (amount: number) => {
-    if (!supabase || !userId) return;
+    if (!isSupabaseConfigured() || !userId) return;
 
     try {
       const { data, error } = await supabase
@@ -209,7 +209,7 @@ export default function Home() {
   };
 
   const handleRemoveDelayProfit = async (id: string) => {
-    if (!supabase) return;
+    if (!isSupabaseConfigured()) return;
 
     try {
       // Como não podemos usar DELETE, vamos apenas remover do estado local

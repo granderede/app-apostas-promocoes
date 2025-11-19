@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { DollarSign } from "lucide-react";
 
 export default function AuthPage() {
@@ -13,7 +13,7 @@ export default function AuthPage() {
   useEffect(() => {
     // Verificar se usuário já está logado
     const checkUser = async () => {
-      if (!supabase) return;
+      if (!isSupabaseConfigured()) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         router.push("/");
@@ -22,7 +22,7 @@ export default function AuthPage() {
     checkUser();
 
     // Listener para mudanças de autenticação
-    if (supabase) {
+    if (isSupabaseConfigured()) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === "SIGNED_IN" && session) {
           // Criar usuário na tabela users se não existir
@@ -61,7 +61,7 @@ export default function AuthPage() {
   }, [router]);
 
   // Se Supabase não estiver configurado
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
