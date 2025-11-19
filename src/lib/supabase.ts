@@ -1,7 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Função para obter variáveis de ambiente de forma segura
+function getEnvVar(key: string): string {
+  if (typeof window !== 'undefined') {
+    // Cliente: usar variáveis públicas
+    return (window as any).__ENV__?.[key] || process.env[key] || '';
+  }
+  // Servidor: usar process.env
+  return process.env[key] || '';
+}
+
+const supabaseUrl = getEnvVar('NEXT_PUBLIC_SUPABASE_URL');
+const supabaseAnonKey = getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
 // Verificar se Supabase está configurado
 export function isSupabaseConfigured() {
@@ -11,7 +21,8 @@ export function isSupabaseConfigured() {
     supabaseUrl !== '' && 
     supabaseAnonKey !== '' &&
     supabaseUrl !== 'undefined' && 
-    supabaseAnonKey !== 'undefined'
+    supabaseAnonKey !== 'undefined' &&
+    supabaseUrl.startsWith('https://')
   );
 }
 
