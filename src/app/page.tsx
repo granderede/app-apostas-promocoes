@@ -32,59 +32,96 @@ export default function Home() {
   const [view, setView] = useState<"feed" | "stats">("feed");
   const [delayProfitEntries, setDelayProfitEntries] = useState<DelayProfitEntry[]>([]);
   const [userName, setUserName] = useState<string>("");
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "1",
-      title: "Método Casa de Apostas X - Odd 2.5",
-      description: "Aproveite a promoção de cashback de 100% na primeira aposta. Método testado com 85% de assertividade.",
-      imageUrl: "https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?w=800&h=400&fit=crop",
-      potentialProfit: 250,
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      completed: true,
-      profit: 250,
-    },
-    {
-      id: "2",
-      title: "Tip Especial - Jogo do Dia",
-      description: "Análise completa do jogo com estatísticas detalhadas. Entrada segura com gestão de banca.",
-      imageUrl: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&h=400&fit=crop",
-      potentialProfit: 180,
-      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-      completed: false,
-    },
-    {
-      id: "3",
-      title: "Promoção Relâmpago - Bônus 200%",
-      description: "Aproveite agora! Bônus de 200% no primeiro depósito + 50 rodadas grátis. Válido por 24h.",
-      imageUrl: "https://images.unsplash.com/photo-1556817411-31ae72fa3ea0?w=800&h=400&fit=crop",
-      potentialProfit: 400,
-      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      completed: true,
-      profit: 420,
-    },
-  ]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [userId, setUserId] = useState<string>("");
 
   useEffect(() => {
-    // Verificar usuário logado apenas se Supabase estiver configurado
-    const checkUser = async () => {
+    // Verificar usuário logado e carregar dados
+    const loadUserData = async () => {
       if (!supabase) {
-        setUserName('Visitante');
+        router.push('/auth');
         return;
       }
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário');
+          setUserId(user.id);
+          
+          // Carregar atividades do banco
+          await loadActivities(user.id);
+          
+          // Carregar lucros atrasados
+          await loadDelayProfits(user.id);
+          
+          setIsLoading(false);
         } else {
-          setUserName('Visitante');
+          router.push('/auth');
         }
       } catch (error) {
         console.error('Erro ao verificar usuário:', error);
-        setUserName('Visitante');
+        router.push('/auth');
       }
     };
-    checkUser();
-  }, []);
+    loadUserData();
+  }, [router]);
+
+  const loadActivities = async (userId: string) => {
+    if (!supabase) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedActivities: Activity[] = data.map(act => ({
+          id: act.id,
+          title: act.title,
+          description: act.description,
+          imageUrl: act.image_url,
+          videoUrl: act.video_url,
+          potentialProfit: parseFloat(act.potential_profit),
+          timestamp: new Date(act.created_at),
+          completed: act.completed,
+          profit: act.profit ? parseFloat(act.profit) : undefined,
+        }));
+        setActivities(formattedActivities);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar atividades:', error);
+    }
+  };
+
+  const loadDelayProfits = async (userId: string) => {
+    if (!supabase) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('delay_profit_entries')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedEntries: DelayProfitEntry[] = data.map(entry => ({
+          id: entry.id,
+          amount: parseFloat(entry.amount),
+          date: new Date(entry.created_at),
+        }));
+        setDelayProfitEntries(formattedEntries);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar lucros atrasados:', error);
+    }
+  };
 
   const handleLogout = async () => {
     if (!supabase) {
@@ -95,27 +132,76 @@ export default function Home() {
     router.push('/auth');
   };
 
-  const handleToggleComplete = (id: string, profit?: number) => {
-    setActivities(prev =>
-      prev.map(act =>
-        act.id === id
-          ? { ...act, completed: !act.completed, profit: !act.completed ? profit : undefined }
-          : act
-      )
-    );
+  const handleToggleComplete = async (id: string, profit?: number) => {
+    if (!supabase) return;
+
+    const activity = activities.find(a => a.id === id);
+    if (!activity) return;
+
+    const newCompleted = !activity.completed;
+    const newProfit = newCompleted ? profit : null;
+
+    try {
+      const { error } = await supabase
+        .from('activities')
+        .update({ 
+          completed: newCompleted, 
+          profit: newProfit,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      setActivities(prev =>
+        prev.map(act =>
+          act.id === id
+            ? { ...act, completed: newCompleted, profit: newProfit || undefined }
+            : act
+        )
+      );
+    } catch (error) {
+      console.error('Erro ao atualizar atividade:', error);
+    }
   };
 
-  const handleAddDelayProfit = (amount: number) => {
-    const newEntry: DelayProfitEntry = {
-      id: Date.now().toString(),
-      amount,
-      date: new Date(),
-    };
-    setDelayProfitEntries(prev => [...prev, newEntry]);
+  const handleAddDelayProfit = async (amount: number) => {
+    if (!supabase || !userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('delay_profit_entries')
+        .insert([{ user_id: userId, amount }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const newEntry: DelayProfitEntry = {
+          id: data.id,
+          amount: parseFloat(data.amount),
+          date: new Date(data.created_at),
+        };
+        setDelayProfitEntries(prev => [...prev, newEntry]);
+      }
+    } catch (error) {
+      console.error('Erro ao adicionar lucro atrasado:', error);
+    }
   };
 
-  const handleRemoveDelayProfit = (id: string) => {
-    setDelayProfitEntries(prev => prev.filter(entry => entry.id !== id));
+  const handleRemoveDelayProfit = async (id: string) => {
+    if (!supabase) return;
+
+    try {
+      // Como não podemos usar DELETE, vamos apenas remover do estado local
+      // Em produção, você precisaria de uma política RLS adequada
+      setDelayProfitEntries(prev => prev.filter(entry => entry.id !== id));
+    } catch (error) {
+      console.error('Erro ao remover lucro atrasado:', error);
+    }
   };
 
   const delayProfit = delayProfitEntries.reduce((sum, entry) => sum + entry.amount, 0);
@@ -128,6 +214,20 @@ export default function Home() {
       .filter(a => !a.completed)
       .reduce((sum, a) => sum + a.potentialProfit, 0),
   };
+
+  // Mostrar loading enquanto verifica autenticação
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <DollarSign className="w-10 h-10 text-black" />
+          </div>
+          <p className="text-gray-400">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -239,13 +339,21 @@ export default function Home() {
               <h2 className="text-xl font-bold text-white">Feed de Atividades</h2>
               <span className="text-sm text-gray-400">{activities.length} ativas</span>
             </div>
-            {activities.map(activity => (
-              <ActivityCard
-                key={activity.id}
-                activity={activity}
-                onToggleComplete={handleToggleComplete}
-              />
-            ))}
+            {activities.length === 0 ? (
+              <div className="bg-zinc-900 border border-green-500/20 rounded-xl p-8 text-center">
+                <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 mb-2">Nenhuma atividade disponível</p>
+                <p className="text-sm text-gray-500">Novas oportunidades aparecerão aqui em breve!</p>
+              </div>
+            ) : (
+              activities.map(activity => (
+                <ActivityCard
+                  key={activity.id}
+                  activity={activity}
+                  onToggleComplete={handleToggleComplete}
+                />
+              ))
+            )}
           </div>
         ) : (
           <StatsDashboard 
