@@ -7,7 +7,9 @@ import DiscordStatus from "@/components/custom/discord-status";
 import ActivityCard from "@/components/custom/activity-card";
 import StatsDashboard from "@/components/custom/stats-dashboard";
 import SupportButton from "@/components/custom/support-button";
+import PaymentWarning from "@/components/custom/payment-warning";
 import { supabase, signOut } from "@/lib/supabase";
+import { checkPaymentStatus, PaymentStatus } from "@/lib/payment-check";
 
 interface Activity {
   id: string;
@@ -32,9 +34,12 @@ export default function Home() {
   const [view, setView] = useState<"feed" | "stats">("feed");
   const [delayProfitEntries, setDelayProfitEntries] = useState<DelayProfitEntry[]>([]);
   const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [userId, setUserId] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
     // Verificar usuário logado e carregar dados
@@ -46,8 +51,19 @@ export default function Home() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          setUserName(user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário');
+          const email = user.email || '';
+          setUserName(user.user_metadata?.name || email.split('@')[0] || 'Usuário');
+          setUserEmail(email);
           setUserId(user.id);
+          
+          // Verificar status de pagamento
+          const status = await checkPaymentStatus(email);
+          setPaymentStatus(status);
+          
+          // Bloquear acesso se expirado
+          if (status.status === 'expired') {
+            setIsBlocked(true);
+          }
           
           // Carregar atividades do banco
           await loadActivities(user.id);
@@ -204,6 +220,12 @@ export default function Home() {
     }
   };
 
+  const handleRenewSubscription = () => {
+    // Redirecionar para página de pagamento da Monetize
+    // Substitua pela URL real do seu produto na Monetize
+    window.open('https://pay.monetizze.com.br/seu-produto', '_blank');
+  };
+
   const delayProfit = delayProfitEntries.reduce((sum, entry) => sum + entry.amount, 0);
 
   const stats = {
@@ -224,6 +246,36 @@ export default function Home() {
             <DollarSign className="w-10 h-10 text-black" />
           </div>
           <p className="text-gray-400">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela de bloqueio se assinatura expirou
+  if (isBlocked) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-red-500/20 border-2 border-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <XCircle className="w-12 h-12 text-red-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-red-400 mb-4">Assinatura Expirada</h1>
+          <p className="text-gray-300 mb-6">
+            Sua assinatura expirou e o período de carência de 3 dias terminou. 
+            Renove agora para continuar acessando todo o conteúdo!
+          </p>
+          <button
+            onClick={handleRenewSubscription}
+            className="bg-green-500 hover:bg-green-600 text-black font-bold py-3 px-8 rounded-lg transition-all transform hover:scale-105 mb-4"
+          >
+            Renovar Assinatura - R$ 59,90/mês
+          </button>
+          <button
+            onClick={handleLogout}
+            className="block w-full text-gray-400 hover:text-white transition-colors"
+          >
+            Sair
+          </button>
         </div>
       </div>
     );
@@ -265,9 +317,19 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Payment Warning */}
+      {paymentStatus && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <PaymentWarning 
+            paymentStatus={paymentStatus} 
+            onRenew={handleRenewSubscription}
+          />
+        </div>
+      )}
+
       {/* Discord Status - Destacado */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <DiscordStatus isOnline={true} />
+        <DiscordStatus />
       </div>
 
       {/* Navigation Tabs */}

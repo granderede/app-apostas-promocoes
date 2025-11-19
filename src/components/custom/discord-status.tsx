@@ -1,16 +1,62 @@
 "use client";
 
 import { MessageCircle, Radio } from "lucide-react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
-interface DiscordStatusProps {
-  isOnline: boolean;
-}
+export default function DiscordStatus() {
+  const [isOnline, setIsOnline] = useState(false);
+  const [discordLink, setDiscordLink] = useState("https://discord.gg/seu-servidor");
+  const [isVisible, setIsVisible] = useState(true);
 
-export default function DiscordStatus({ isOnline }: DiscordStatusProps) {
+  useEffect(() => {
+    // Carregar configurações do Discord
+    const loadDiscordConfig = async () => {
+      if (!supabase) return;
+
+      const { data, error } = await supabase
+        .from('discord_config')
+        .select('*')
+        .single();
+
+      if (data) {
+        setIsOnline(data.is_online);
+        setDiscordLink(data.discord_link);
+        setIsVisible(data.is_online); // Só mostra se estiver online
+      }
+    };
+
+    loadDiscordConfig();
+
+    // Atualizar em tempo real
+    const channel = supabase
+      ?.channel('discord_config_changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'discord_config' },
+        (payload) => {
+          if (payload.new) {
+            const newData = payload.new as { is_online: boolean; discord_link: string };
+            setIsOnline(newData.is_online);
+            setDiscordLink(newData.discord_link);
+            setIsVisible(newData.is_online);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel?.unsubscribe();
+    };
+  }, []);
+
   const handleDiscordClick = () => {
-    // Aqui você pode adicionar o link do seu servidor Discord
-    window.open("https://discord.gg/seu-servidor", "_blank");
+    window.open(discordLink, "_blank");
   };
+
+  // Não renderizar se estiver desativado
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <button

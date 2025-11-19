@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Send, Image as ImageIcon, Video, DollarSign, Users, TrendingUp, ArrowLeft, MessageCircle } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -14,6 +17,11 @@ export default function AdminPage() {
   // Discord Configuration
   const [discordLink, setDiscordLink] = useState("https://discord.gg/seu-canal");
   const [isDiscordOnline, setIsDiscordOnline] = useState(true);
+  const [discordConfigId, setDiscordConfigId] = useState<string>("");
+  
+  // Stats
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalActivities, setTotalActivities] = useState(0);
   
   // Support Messages
   const [supportMessages, setSupportMessages] = useState<Array<{
@@ -23,49 +31,152 @@ export default function AdminPage() {
     message: string;
     timestamp: Date;
     read: boolean;
-  }>>([
-    {
-      id: "1",
-      userId: "user123",
-      userName: "João Silva",
-      message: "Olá! Tenho uma dúvida sobre o método da última atividade.",
-      timestamp: new Date(Date.now() - 30 * 60 * 1000),
-      read: false,
-    },
-    {
-      id: "2",
-      userId: "user456",
-      userName: "Maria Santos",
-      message: "Consegui R$ 300 com a última tip! Obrigada!",
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      read: true,
-    },
-  ]);
+  }>>([]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Aqui você implementaria a lógica de envio para o backend
-    console.log({
-      title,
-      description,
-      imageUrl,
-      videoUrl,
-      potentialProfit: parseFloat(potentialProfit),
-      timestamp: new Date(),
-    });
-    
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setImageUrl("");
-    setVideoUrl("");
-    setPotentialProfit("");
-    
-    alert("Atividade enviada com sucesso! Todos os usuários receberão notificação.");
+  useEffect(() => {
+    // Verificar se é admin
+    const checkAdmin = async () => {
+      if (!supabase) {
+        router.push('/auth');
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('is_admin')
+        .eq('email', user.email)
+        .single();
+
+      if (!userData?.is_admin) {
+        router.push('/');
+        return;
+      }
+
+      // Carregar configurações do Discord
+      loadDiscordConfig();
+      
+      // Carregar estatísticas
+      loadStats();
+    };
+
+    checkAdmin();
+  }, [router]);
+
+  const loadDiscordConfig = async () => {
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('discord_config')
+      .select('*')
+      .single();
+
+    if (data) {
+      setDiscordConfigId(data.id);
+      setIsDiscordOnline(data.is_online);
+      setDiscordLink(data.discord_link);
+    }
   };
 
-  const handleDiscordUpdate = () => {
-    alert(`Status do Discord atualizado!\nLink: ${discordLink}\nStatus: ${isDiscordOnline ? "Online" : "Offline"}`);
+  const loadStats = async () => {
+    if (!supabase) return;
+
+    // Contar usuários
+    const { count: usersCount } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+
+    if (usersCount) setTotalUsers(usersCount);
+
+    // Contar atividades
+    const { count: activitiesCount } = await supabase
+      .from('activities')
+      .select('*', { count: 'exact', head: true });
+
+    if (activitiesCount) setTotalActivities(activitiesCount);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!supabase) {
+      alert("Erro: Supabase não configurado");
+      return;
+    }
+
+    try {
+      // Buscar todos os usuários
+      const { data: users } = await supabase
+        .from('users')
+        .select('id');
+
+      if (!users || users.length === 0) {
+        alert("Nenhum usuário encontrado para enviar atividade");
+        return;
+      }
+
+      // Criar atividade para cada usuário
+      const activities = users.map(user => ({
+        user_id: user.id,
+        title,
+        description,
+        image_url: imageUrl || null,
+        video_url: videoUrl || null,
+        potential_profit: parseFloat(potentialProfit),
+        completed: false,
+      }));
+
+      const { error } = await supabase
+        .from('activities')
+        .insert(activities);
+
+      if (error) throw error;
+
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setImageUrl("");
+      setVideoUrl("");
+      setPotentialProfit("");
+      
+      alert(`Atividade enviada com sucesso para ${users.length} usuário(s)!`);
+      
+      // Recarregar estatísticas
+      loadStats();
+    } catch (error) {
+      console.error('Erro ao enviar atividade:', error);
+      alert("Erro ao enviar atividade. Tente novamente.");
+    }
+  };
+
+  const handleDiscordUpdate = async () => {
+    if (!supabase || !discordConfigId) {
+      alert("Erro ao atualizar configurações");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('discord_config')
+        .update({
+          is_online: isDiscordOnline,
+          discord_link: discordLink,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', discordConfigId);
+
+      if (error) throw error;
+
+      alert(`Status do Discord atualizado!\nLink: ${discordLink}\nStatus: ${isDiscordOnline ? "Online" : "Offline"}`);
+    } catch (error) {
+      console.error('Erro ao atualizar Discord:', error);
+      alert("Erro ao atualizar configurações do Discord");
+    }
   };
 
   const unreadCount = supportMessages.filter(m => !m.read).length;
@@ -85,7 +196,7 @@ export default function AdminPage() {
               </Link>
               <div>
                 <h1 className="text-xl font-bold text-green-400">Painel Admin</h1>
-                <p className="text-xs text-gray-400">Envie atividades para seus usuários</p>
+                <p className="text-xs text-gray-400">Envie atividades e gerencie o Discord</p>
               </div>
             </div>
             <div className="bg-green-500/10 px-4 py-2 rounded-full border border-green-500/30">
@@ -101,23 +212,23 @@ export default function AdminPage() {
           <div className="bg-gradient-to-br from-green-500/20 to-green-600/10 p-6 rounded-2xl border border-green-500/30">
             <div className="flex items-center gap-3 mb-2">
               <Users className="w-5 h-5 text-green-400" />
-              <span className="text-sm text-gray-400">Usuários Ativos</span>
+              <span className="text-sm text-gray-400">Usuários Cadastrados</span>
             </div>
-            <p className="text-3xl font-bold text-green-400">247</p>
+            <p className="text-3xl font-bold text-green-400">{totalUsers}</p>
           </div>
           <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 p-6 rounded-2xl border border-blue-500/30">
             <div className="flex items-center gap-3 mb-2">
               <TrendingUp className="w-5 h-5 text-blue-400" />
               <span className="text-sm text-gray-400">Atividades Enviadas</span>
             </div>
-            <p className="text-3xl font-bold text-blue-400">156</p>
+            <p className="text-3xl font-bold text-blue-400">{totalActivities}</p>
           </div>
           <div className="bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 p-6 rounded-2xl border border-yellow-500/30">
             <div className="flex items-center gap-3 mb-2">
               <DollarSign className="w-5 h-5 text-yellow-400" />
-              <span className="text-sm text-gray-400">Receita Mensal</span>
+              <span className="text-sm text-gray-400">Receita Estimada</span>
             </div>
-            <p className="text-3xl font-bold text-yellow-400">R$ 14.794,30</p>
+            <p className="text-3xl font-bold text-yellow-400">R$ {(totalUsers * 59.90).toFixed(2)}</p>
           </div>
           <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 p-6 rounded-2xl border border-purple-500/30">
             <div className="flex items-center gap-3 mb-2">
@@ -160,7 +271,7 @@ export default function AdminPage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Status do Discord
+                Status do Botão Discord
               </label>
               <div className="flex items-center gap-4">
                 <button
@@ -171,7 +282,7 @@ export default function AdminPage() {
                       : "bg-zinc-800 text-gray-400 border border-zinc-700"
                   }`}
                 >
-                  Online
+                  Ativado
                 </button>
                 <button
                   onClick={() => setIsDiscordOnline(false)}
@@ -181,7 +292,7 @@ export default function AdminPage() {
                       : "bg-zinc-800 text-gray-400 border border-zinc-700"
                   }`}
                 >
-                  Offline
+                  Desativado
                 </button>
               </div>
             </div>
@@ -191,58 +302,13 @@ export default function AdminPage() {
             onClick={handleDiscordUpdate}
             className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 px-6 rounded-xl transition-all duration-300"
           >
-            Atualizar Configurações do Discord
+            Salvar Configurações do Discord
           </button>
-        </div>
-
-        {/* Support Messages */}
-        <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-6 mb-8">
-          <h2 className="text-xl font-bold text-white mb-4 flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <MessageCircle className="w-6 h-6 text-purple-400" />
-              Mensagens de Suporte
-            </span>
-            {unreadCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                {unreadCount} não lida{unreadCount > 1 ? "s" : ""}
-              </span>
-            )}
-          </h2>
           
-          <div className="space-y-3">
-            {supportMessages.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Nenhuma mensagem de suporte ainda</p>
-              </div>
-            ) : (
-              supportMessages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`bg-zinc-800 rounded-xl p-4 border ${
-                    msg.read ? "border-zinc-700" : "border-purple-500/50 bg-purple-500/5"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h4 className="font-bold text-white">{msg.userName}</h4>
-                      <p className="text-xs text-gray-400">
-                        {msg.timestamp.toLocaleString("pt-BR")}
-                      </p>
-                    </div>
-                    {!msg.read && (
-                      <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                        Nova
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-300 mb-3">{msg.message}</p>
-                  <button className="bg-green-500 hover:bg-green-600 text-black text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-                    Responder
-                  </button>
-                </div>
-              ))
-            )}
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <p className="text-sm text-blue-400">
+              💡 <strong>Dica:</strong> Quando desativado, o botão do Discord não aparecerá para os usuários. Use isso para manutenção ou quando o servidor estiver offline.
+            </p>
           </div>
         </div>
 
@@ -377,7 +443,7 @@ export default function AdminPage() {
           {/* Info Box */}
           <div className="mt-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
             <p className="text-sm text-blue-400">
-              💡 <strong>Dica:</strong> Todos os usuários ativos receberão uma notificação instantânea quando você enviar uma nova atividade.
+              💡 <strong>Dica:</strong> A atividade será enviada automaticamente para todos os usuários cadastrados no sistema.
             </p>
           </div>
         </div>

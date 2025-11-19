@@ -23,9 +23,36 @@ export default function AuthPage() {
 
     // Listener para mudanças de autenticação
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (event === "SIGNED_IN" && session) {
-          router.push("/");
+          // Criar usuário na tabela users se não existir
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', session.user.email)
+            .single();
+
+          if (!existingUser) {
+            await supabase
+              .from('users')
+              .insert([{ 
+                email: session.user.email,
+                is_admin: false 
+              }]);
+          }
+
+          // Verificar se é admin e redirecionar
+          const { data: userData } = await supabase
+            .from('users')
+            .select('is_admin')
+            .eq('email', session.user.email)
+            .single();
+
+          if (userData?.is_admin) {
+            router.push("/admin");
+          } else {
+            router.push("/");
+          }
         }
       });
 
